@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TokenCave</title>
+  <style>
+    :root {
+      --bg: #1e1b18;
+      --bg2: #2a2520;
+      --border: #3a342e;
+      --text: #faf9f5;
+      --muted: #8b8178;
+      --accent: #d97706;
+      --accent-soft: rgba(217,119,6,0.15);
+      --blue: #5aa6ff;
+      --red: #ce2029;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 260px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+      padding: 14px;
+    }
+    h1 {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 12px;
+    }
+    h1 span.logo { font-size: 18px; }
+    .section { margin-bottom: 14px; }
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .level-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+    }
+    .level-btn {
+      padding: 5px 4px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: center;
+      transition: all 100ms;
+    }
+    .level-btn:hover { border-color: var(--accent); color: var(--text); }
+    .level-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      background: var(--bg2);
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      margin-bottom: 6px;
+    }
+    .status-label { color: var(--muted); font-size: 11px; }
+    .status-val { font-weight: 600; font-size: 12px; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    .help {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+    .help code {
+      background: var(--bg2);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: 10px;
+      color: var(--blue);
+    }
+    footer {
+      margin-top: 10px;
+      font-size: 10px;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1><span class="logo">🪨</span> TokenCave</h1>
+
+  <div class="section">
+    <div class="section-title">Caveman Mode</div>
+    <div class="level-grid">
+      <button class="level-btn" data-level="off">Off</button>
+      <button class="level-btn" data-level="lite">🪶 Lite</button>
+      <button class="level-btn" data-level="full">🪨 Full</button>
+      <button class="level-btn" data-level="ultra">🔥 Ultra</button>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="section">
+    <div class="section-title">Status</div>
+    <div class="status-row">
+      <span class="status-label">Mode</span>
+      <span class="status-val" id="statusMode">Loading…</span>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  <div class="help">
+    Type commands in chat:<br />
+    <code>/cave</code> toggle &nbsp; <code>/cave lite</code> &nbsp; <code>/cave ultra</code> &nbsp; <code>/cave off</code>
+  </div>
+
+  <footer>TokenCave v1.0.0 — All data stays local</footer>
+
+  <script>
+    // Read state from active claude.ai tab
+    const LEVELS = ['off', 'lite', 'full', 'ultra'];
+
+    function updateUI(active, level) {
+      const statusEl = document.getElementById('statusMode');
+      statusEl.textContent = active ? `${level} 🪨` : 'off';
+
+      document.querySelectorAll('.level-btn').forEach(btn => {
+        const isActive = active ? btn.dataset.level === level : btn.dataset.level === 'off';
+        btn.classList.toggle('active', isActive);
+      });
+    }
+
+    async function getActiveTab() {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      return tabs[0];
+    }
+
+    async function loadState() {
+      try {
+        const tab = await getActiveTab();
+        if (!tab?.id) { updateUI(false, 'full'); return; }
+
+        const result = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            try {
+              const raw = sessionStorage.getItem('tc:caveman');
+              return raw ? JSON.parse(raw) : null;
+            } catch { return null; }
+          }
+        });
+
+        const state = result?.[0]?.result;
+        if (state) {
+          updateUI(state.active, state.level);
+        } else {
+          updateUI(false, 'full');
+        }
+      } catch {
+        updateUI(false, 'full');
+      }
+    }
+
+    async function setLevel(level) {
+      try {
+        const tab = await getActiveTab();
+        if (!tab?.id) return;
+
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: (lvl) => {
+            if (window.TokenCave?.caveman?.setLevel) {
+              window.TokenCave.caveman.setLevel(lvl);
+            } else {
+              try {
+                const active = lvl !== 'off';
+                const actualLevel = active ? lvl : (JSON.parse(sessionStorage.getItem('tc:caveman') || '{}').level || 'full');
+                sessionStorage.setItem('tc:caveman', JSON.stringify({ active, level: actualLevel }));
+              } catch {}
+            }
+          },
+          args: [level]
+        });
+
+        const active = level !== 'off';
+        const actualLevel = active ? level : 'full';
+        updateUI(active, actualLevel);
+      } catch {}
+    }
+
+    document.querySelectorAll('.level-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLevel(btn.dataset.level));
+    });
+
+    loadState();
+  </script>
+</body>
+</html>
