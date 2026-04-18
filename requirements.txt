@@ -1,0 +1,14 @@
+# TokenCave — Python dependencies
+# Used only by the context-compression CLI (skills/compress/)
+# The browser extension itself has no Python dependencies.
+
+# ── Anthropic SDK (for compression script) ────────────────
+anthropic>=0.25.0
+
+# ── CLI & utilities ───────────────────────────────────────
+click>=8.1.0
+
+# ── Benchmarking & evals (optional, dev only) ─────────────
+tiktoken>=0.6.0
+matplotlib>=3.8.0
+numpy>=1.26.0
